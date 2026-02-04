@@ -156,6 +156,7 @@ int cmd_checkout__worker(int argc, const char **argv, const char *prefix, struct
 int cmd_checkout_index(int argc, const char **argv, const char *prefix, struct repository *repo);
 int cmd_check_attr(int argc, const char **argv, const char *prefix, struct repository *repo);
 int cmd_check_ignore(int argc, const char **argv, const char *prefix, struct repository *repo);
+int cmd_check_cleanignore(int argc, const char **argv, const char *prefix, struct repository *repo);
 int cmd_check_mailmap(int argc, const char **argv, const char *prefix, struct repository *repo);
 int cmd_check_ref_format(int argc, const char **argv, const char *prefix, struct repository *repo);
 int cmd_cherry(int argc, const char **argv, const char *prefix, struct repository *repo);
