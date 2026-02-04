@@ -927,6 +927,7 @@ int cmd_clean(int argc,
 	int rm_flags = REMOVE_DIR_KEEP_NESTED_GIT;
 	struct strbuf abs_path = STRBUF_INIT;
 	struct dir_struct dir = DIR_INIT;
+	struct cleanignore_struct cleanignore = CLEANIGNORE_INIT;
 	struct pathspec pathspec;
 	struct strbuf buf = STRBUF_INIT;
 	struct string_list exclude_list = STRING_LIST_INIT_NODUP;
@@ -1016,6 +1017,8 @@ int cmd_clean(int argc,
 	if (repo_read_index(the_repository) < 0)
 		die(_("index file corrupt"));
 
+	setup_cleanignore(&cleanignore);
+
 	pl = add_pattern_list(&dir, EXC_CMDL, "--exclude option");
 	for (i = 0; i < exclude_list.nr; i++)
 		add_pattern(exclude_list.items[i].string, "", 0, pl, -(i+1));
@@ -1031,6 +1034,7 @@ int cmd_clean(int argc,
 		struct dir_entry *ent = dir.entries[i];
 		struct stat st;
 		const char *rel;
+		int dtype;
 
 		if (!index_name_is_other(the_repository->index, ent->name, ent->len))
 			continue;
@@ -1038,7 +1042,14 @@ int cmd_clean(int argc,
 		if (lstat(ent->name, &st))
 			die_errno("Cannot lstat '%s'", ent->name);
 
+		dtype = S_ISDIR(st.st_mode) ? DT_DIR : DT_REG;
+
 		if (S_ISDIR(st.st_mode) && !remove_directories)
+			continue;
+
+		/* Check if protected by cleanignore */
+		if (is_cleanignored(&cleanignore, the_repository->index,
+				    ent->name, &dtype))
 			continue;
 
 		rel = relative_path(ent->name, prefix, &buf);
@@ -1094,5 +1105,6 @@ int cmd_clean(int argc,
 	string_list_clear(&del_list, 0);
 	string_list_clear(&exclude_list, 0);
 	clear_pathspec(&pathspec);
+	cleanignore_clear(&cleanignore);
 	return (errors != 0);
 }
