@@ -800,4 +800,163 @@ test_expect_success 'traverse into directories that may have ignored entries' '
 	)
 '
 
+#
+# Tests for .gitcleanignore
+#
+
+test_expect_success 'setup for cleanignore tests' '
+	test_create_repo cleanignore-tests &&
+	(
+		cd cleanignore-tests &&
+		>tracked_file &&
+		git add tracked_file &&
+		git commit -m "initial commit"
+	)
+'
+
+test_expect_success '.gitcleanignore protects untracked files' '
+	(
+		cd cleanignore-tests &&
+		>untracked_file &&
+		>protected_file &&
+		echo "protected_file" >.gitcleanignore &&
+		git clean -f &&
+		test_path_is_missing untracked_file &&
+		test_path_is_file protected_file &&
+		rm -f protected_file .gitcleanignore
+	)
+'
+
+test_expect_success '.gitcleanignore protects files even with -x flag' '
+	(
+		cd cleanignore-tests &&
+		>untracked_file &&
+		>protected_file &&
+		echo "*.ignored" >.gitignore &&
+		>file.ignored &&
+		echo "protected_file" >.gitcleanignore &&
+		git clean -fx &&
+		test_path_is_missing untracked_file &&
+		test_path_is_missing file.ignored &&
+		test_path_is_file protected_file &&
+		rm -f protected_file .gitcleanignore .gitignore
+	)
+'
+
+test_expect_success '.gitcleanignore protects files with -X flag' '
+	(
+		cd cleanignore-tests &&
+		echo "*.ignored" >.gitignore &&
+		>file.ignored &&
+		>protected.ignored &&
+		echo "protected.ignored" >.gitcleanignore &&
+		git clean -fX &&
+		test_path_is_missing file.ignored &&
+		test_path_is_file protected.ignored &&
+		rm -f protected.ignored .gitcleanignore .gitignore
+	)
+'
+
+test_expect_success 'nested per-directory .gitcleanignore works' '
+	(
+		cd cleanignore-tests &&
+		mkdir -p subdir &&
+		>subdir/untracked_file &&
+		>subdir/protected_file &&
+		echo "subdir/" >.gitcleanignore &&
+		git clean -fd &&
+		test_path_is_dir subdir &&
+		test_path_is_file subdir/protected_file &&
+		rm -rf subdir .gitcleanignore
+	)
+'
+
+test_expect_success '.gitcleanignore pattern matching with wildcards' '
+	(
+		cd cleanignore-tests &&
+		>file1.keep &&
+		>file2.keep &&
+		>file.delete &&
+		echo "*.keep" >.gitcleanignore &&
+		git clean -f &&
+		test_path_is_file file1.keep &&
+		test_path_is_file file2.keep &&
+		test_path_is_missing file.delete &&
+		rm -f file1.keep file2.keep .gitcleanignore
+	)
+'
+
+test_expect_success '.git/info/cleanignore works' '
+	(
+		cd cleanignore-tests &&
+		mkdir -p .git/info &&
+		>untracked_file &&
+		>repo_protected_file &&
+		echo "repo_protected_file" >.git/info/cleanignore &&
+		git clean -f &&
+		test_path_is_missing untracked_file &&
+		test_path_is_file repo_protected_file &&
+		rm -f repo_protected_file .git/info/cleanignore
+	)
+'
+
+test_expect_success 'core.cleanExcludesFile works' '
+	(
+		cd cleanignore-tests &&
+		>untracked_file &&
+		>global_protected_file &&
+		echo "global_protected_file" >"$TRASH_DIRECTORY/global_cleanignore" &&
+		git -c core.cleanExcludesFile="$TRASH_DIRECTORY/global_cleanignore" clean -f &&
+		test_path_is_missing untracked_file &&
+		test_path_is_file global_protected_file &&
+		rm -f global_protected_file "$TRASH_DIRECTORY/global_cleanignore"
+	)
+'
+
+test_expect_success '.gitcleanignore negation patterns work' '
+	(
+		cd cleanignore-tests &&
+		>file1.tmp &&
+		>file2.tmp &&
+		>important.tmp &&
+		cat >.gitcleanignore <<-\EOF &&
+		*.tmp
+		!important.tmp
+		EOF
+		git clean -f &&
+		test_path_is_file file1.tmp &&
+		test_path_is_file file2.tmp &&
+		test_path_is_missing important.tmp &&
+		rm -f file1.tmp file2.tmp .gitcleanignore
+	)
+'
+
+test_expect_success '.gitcleanignore directory patterns work' '
+	(
+		cd cleanignore-tests &&
+		mkdir -p protected_dir unprotected_dir &&
+		>protected_dir/file &&
+		>unprotected_dir/file &&
+		echo "protected_dir/" >.gitcleanignore &&
+		git clean -fd &&
+		test_path_is_dir protected_dir &&
+		test_path_is_file protected_dir/file &&
+		test_path_is_missing unprotected_dir &&
+		rm -rf protected_dir .gitcleanignore
+	)
+'
+
+test_expect_success 'cleanignore priority: per-directory overrides global' '
+	(
+		cd cleanignore-tests &&
+		mkdir -p subdir &&
+		>subdir/file.protect &&
+		echo "file.protect" >"$TRASH_DIRECTORY/global_cleanignore" &&
+		echo "!file.protect" >subdir/.gitcleanignore &&
+		git -c core.cleanExcludesFile="$TRASH_DIRECTORY/global_cleanignore" clean -fd &&
+		test_path_is_missing subdir/file.protect &&
+		rm -rf subdir "$TRASH_DIRECTORY/global_cleanignore"
+	)
+'
+
 test_done
