@@ -63,6 +63,7 @@ enum fsync_component fsync_components = FSYNC_COMPONENTS_DEFAULT;
 char *editor_program;
 char *askpass_program;
 char *excludes_file;
+char *clean_excludes_file;
 enum auto_crlf auto_crlf = AUTO_CRLF_FALSE;
 enum eol core_eol = EOL_UNSET;
 int global_conv_flags_eol = CONV_EOL_RNDTRP_WARN;
@@ -471,6 +472,11 @@ int git_default_core_config(const char *var, const char *value,
 	if (!strcmp(var, "core.excludesfile")) {
 		FREE_AND_NULL(excludes_file);
 		return git_config_pathname(&excludes_file, var, value);
+	}
+
+	if (!strcmp(var, "core.cleanexcludesfile")) {
+		FREE_AND_NULL(clean_excludes_file);
+		return git_config_pathname(&clean_excludes_file, var, value);
 	}
 
 	if (!strcmp(var, "core.whitespace")) {

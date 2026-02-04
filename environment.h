@@ -202,6 +202,7 @@ extern char *git_log_output_encoding;
 extern char *editor_program;
 extern char *askpass_program;
 extern char *excludes_file;
+extern char *clean_excludes_file;
 
 /*
  * The character that begins a commented line in user-editable file

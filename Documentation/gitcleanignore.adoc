@@ -1,0 +1,170 @@
+gitcleanignore(5)
+=================
+
+NAME
+----
+gitcleanignore - Specifies untracked files to protect from git clean
+
+SYNOPSIS
+--------
+$XDG_CONFIG_HOME/git/cleanignore, $GIT_DIR/info/cleanignore, .gitcleanignore
+
+DESCRIPTION
+-----------
+
+A `gitcleanignore` file specifies untracked files that should be
+protected from removal by linkgit:git-clean[1].  This is useful for
+preserving local configuration files, build artifacts you want to keep,
+or any other untracked files that should not be deleted when cleaning
+the working tree.
+
+Note that `gitcleanignore` is independent from `gitignore`.  Files
+listed in `.gitignore` are already protected from `git clean` by default
+(unless `-x` or `-X` is used), while files in `.gitcleanignore` are
+protected even when using `-x` or `-X` flags.
+
+Each line in a `gitcleanignore` file specifies a pattern.
+When deciding whether to protect a path from cleaning, Git checks
+`gitcleanignore` patterns from multiple sources, with the following
+order of precedence, from highest to lowest (within one level of
+precedence, the last matching pattern decides the outcome):
+
+ * Patterns read from a `.gitcleanignore` file in the same directory
+   as the path, or in any parent directory (up to the top-level of the working
+   tree), with patterns in the higher level files being overridden by those in
+   lower level files down to the directory containing the file. These patterns
+   match relative to the location of the `.gitcleanignore` file.
+
+ * Patterns read from `$GIT_DIR/info/cleanignore`.
+
+ * Patterns read from the file specified by the configuration
+   variable `core.cleanExcludesFile`.
+
+Which file to place a pattern in depends on how the pattern is meant to
+be used.
+
+ * Patterns which should be version-controlled and distributed to
+   other repositories via clone (i.e., files that all developers will want
+   to protect from cleaning) should go into a `.gitcleanignore` file.
+
+ * Patterns which are specific to a particular repository but which do
+   not need to be shared with other related repositories (e.g., local
+   configuration files specific to one user's workflow) should go into
+   the `$GIT_DIR/info/cleanignore` file.
+
+ * Patterns which a user wants to protect in all repositories
+   (e.g., editor backup files or personal configuration) generally go
+   into a file specified by `core.cleanExcludesFile` in the user's
+   `~/.gitconfig`. Its default value is $XDG_CONFIG_HOME/git/cleanignore.
+   If $XDG_CONFIG_HOME is either not set or empty,
+   $HOME/.config/git/cleanignore is used instead.
+
+PATTERN FORMAT
+--------------
+
+The pattern format is identical to that of linkgit:gitignore[5]:
+
+ - A blank line matches no files, so it can serve as a separator
+   for readability.
+
+ - A line starting with # serves as a comment.
+   Put a backslash ("`\`") in front of the first hash for patterns
+   that begin with a hash.
+
+ - Trailing spaces are ignored unless they are quoted with backslash
+   ("`\`").
+
+ - An optional prefix "`!`" which negates the pattern; any
+   matching file protected by a previous pattern will become
+   unprotected again.
+   Put a backslash ("`\`") in front of the first "`!`" for patterns
+   that begin with a literal "`!`", for example, "`\!important!.txt`".
+
+ - The slash "`/`" is used as the directory separator. Separators may
+   occur at the beginning, middle or end of the `.gitcleanignore` search pattern.
+
+ - If there is a separator at the beginning or middle (or both) of the
+   pattern, then the pattern is relative to the directory level of the
+   particular `.gitcleanignore` file itself. Otherwise the pattern may also
+   match at any level below the `.gitcleanignore` level.
+
+ - If there is a separator at the end of the pattern then the pattern
+   will only match directories, otherwise the pattern can match both
+   files and directories.
+
+ - An asterisk "`*`" matches anything except a slash.
+   The character "`?`" matches any one character except "`/`".
+   The range notation, e.g. `[a-zA-Z]`, can be used to match
+   one of the characters in a range. See fnmatch(3) and the
+   FNM_PATHNAME flag for a more detailed description.
+
+Two consecutive asterisks ("`**`") in patterns matched against
+full pathname may have special meaning:
+
+ - A leading "`**`" followed by a slash means match in all
+   directories. For example, "`**/foo`" matches file or directory
+   "`foo`" anywhere, the same as pattern "`foo`".
+
+ - A trailing "`/**`" matches everything inside. For example,
+   "`abc/**`" matches all files inside directory "`abc`", relative
+   to the location of the `.gitcleanignore` file, with infinite depth.
+
+ - A slash followed by two consecutive asterisks then a slash
+   matches zero or more directories. For example, "`a/**/b`"
+   matches "`a/b`", "`a/x/b`", "`a/x/y/b`" and so on.
+
+CONFIGURATION
+-------------
+
+The optional configuration variable `core.cleanExcludesFile` indicates a path
+to a file containing patterns of file names to protect from cleaning, similar
+to `$GIT_DIR/info/cleanignore`.  Patterns in this file are used in addition to
+those in `$GIT_DIR/info/cleanignore`.
+
+EXAMPLES
+--------
+
+To protect local configuration files from being cleaned:
+
+--------------------------------------------------------------
+    $ cat .gitcleanignore
+    # Protect local configuration
+    local.config
+    .env.local
+
+    # Protect the entire secrets directory
+    secrets/
+--------------------------------------------------------------
+
+To protect certain build artifacts while allowing others to be cleaned:
+
+--------------------------------------------------------------
+    $ cat .gitcleanignore
+    # Protect compiled binaries in bin/
+    bin/
+
+    # But allow cleaning temporary build files
+    !bin/tmp/
+--------------------------------------------------------------
+
+Using the global cleanignore file for editor backup files:
+
+--------------------------------------------------------------
+    $ cat ~/.config/git/cleanignore
+    # Protect vim swap files
+    *.swp
+    *.swo
+
+    # Protect emacs backup files
+    *~
+--------------------------------------------------------------
+
+SEE ALSO
+--------
+linkgit:git-clean[1],
+linkgit:git-check-cleanignore[1],
+linkgit:gitignore[5]
+
+GIT
+---
+Part of the linkgit:git[1] suite

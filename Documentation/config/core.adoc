@@ -482,6 +482,16 @@ core.excludesFile::
 	If `$XDG_CONFIG_HOME` is either not set or empty, `$HOME/.config/git/ignore`
 	is used instead. See linkgit:gitignore[5].
 
+core.cleanExcludesFile::
+	Specifies the pathname to the file that contains patterns to
+	describe paths that should be protected from removal by
+	linkgit:git-clean[1], in addition to `.gitcleanignore` (per-directory)
+	and `.git/info/cleanignore`.
+	Defaults to `$XDG_CONFIG_HOME/git/cleanignore`.
+	If `$XDG_CONFIG_HOME` is either not set or empty,
+	`$HOME/.config/git/cleanignore` is used instead.
+	See linkgit:gitcleanignore[5].
+
 core.askPass::
 	Some commands (e.g. svn and http interfaces) that interactively
 	ask for a password can be told to use an external program given

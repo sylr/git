@@ -358,6 +358,40 @@ struct dir_struct {
 
 #define DIR_INIT { 0 }
 
+/*
+ * Cleanignore structure for protecting files from git clean.
+ * Similar to exclude handling, but independent from gitignore.
+ */
+#define CLEANIGNORE_CMDL 0
+#define CLEANIGNORE_DIRS 1
+#define CLEANIGNORE_FILE 2
+
+struct cleanignore_struct {
+	const char *per_dir_file;              /* ".gitcleanignore" */
+	struct exclude_list_group groups[3];   /* Same structure as gitignore */
+	struct exclude_stack *stack;           /* For per-directory tracking */
+	struct strbuf basebuf;
+};
+
+#define CLEANIGNORE_INIT { \
+	.per_dir_file = ".gitcleanignore", \
+	.basebuf = STRBUF_INIT, \
+}
+
+void setup_cleanignore(struct cleanignore_struct *ci);
+void prep_cleanignore(struct cleanignore_struct *ci,
+		      struct index_state *istate,
+		      const char *base, int baselen);
+struct path_pattern *last_matching_cleanignore_pattern(
+		struct cleanignore_struct *ci,
+		struct index_state *istate,
+		const char *pathname, int pathlen,
+		const char *basename, int *dtype_p);
+int is_cleanignored(struct cleanignore_struct *ci,
+		    struct index_state *istate,
+		    const char *pathname, int *dtype);
+void cleanignore_clear(struct cleanignore_struct *ci);
+
 struct dirent *readdir_skip_dot_and_dotdot(DIR *dirp);
 
 /*

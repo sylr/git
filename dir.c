@@ -3476,6 +3476,7 @@ int remove_dir_recursively(struct strbuf *path, int flag)
 }
 
 static GIT_PATH_FUNC(git_path_info_exclude, "info/exclude")
+static GIT_PATH_FUNC(git_path_info_cleanignore, "info/cleanignore")
 
 void setup_standard_excludes(struct dir_struct *dir)
 {
@@ -3495,6 +3496,227 @@ void setup_standard_excludes(struct dir_struct *dir)
 			add_patterns_from_file_1(dir, path,
 						 dir->untracked ? &dir->internal.ss_info_exclude : NULL);
 	}
+}
+
+/*
+ * Cleanignore helper: add a pattern list to a cleanignore group.
+ */
+static struct pattern_list *cleanignore_add_pattern_list(
+		struct cleanignore_struct *ci,
+		int group_type, const char *src)
+{
+	struct pattern_list *pl;
+	struct exclude_list_group *group;
+
+	group = &ci->groups[group_type];
+	ALLOC_GROW(group->pl, group->nr + 1, group->alloc);
+	pl = &group->pl[group->nr++];
+	memset(pl, 0, sizeof(*pl));
+	pl->src = src;
+	return pl;
+}
+
+/*
+ * Cleanignore helper: add patterns from a file to a cleanignore group.
+ */
+static void cleanignore_add_patterns_from_file(struct cleanignore_struct *ci,
+					       const char *fname)
+{
+	struct pattern_list *pl;
+	pl = cleanignore_add_pattern_list(ci, CLEANIGNORE_FILE, fname);
+	if (add_patterns_from_file_to_list(fname, "", 0, pl, NULL, 0) < 0)
+		die(_("cannot use %s as a cleanignore file"), fname);
+}
+
+/*
+ * Setup cleanignore: load global and repo-specific cleanignore files.
+ */
+void setup_cleanignore(struct cleanignore_struct *ci)
+{
+	/* core.cleanExcludesFile defaulting to $XDG_CONFIG_HOME/git/cleanignore */
+	if (!clean_excludes_file)
+		clean_excludes_file = xdg_config_home("cleanignore");
+	if (clean_excludes_file && !access_or_warn(clean_excludes_file, R_OK, 0))
+		cleanignore_add_patterns_from_file(ci, clean_excludes_file);
+
+	/* per repository user preference */
+	if (startup_info->have_repository) {
+		const char *path = git_path_info_cleanignore();
+		if (!access_or_warn(path, R_OK, 0))
+			cleanignore_add_patterns_from_file(ci, path);
+	}
+}
+
+/*
+ * Lazy-load per-directory .gitcleanignore patterns.
+ * Similar to prep_exclude() but for cleanignore.
+ */
+void prep_cleanignore(struct cleanignore_struct *ci,
+			     struct index_state *istate,
+			     const char *base, int baselen)
+{
+	struct exclude_list_group *group;
+	struct pattern_list *pl;
+	struct exclude_stack *stk = NULL;
+	int current;
+
+	group = &ci->groups[CLEANIGNORE_DIRS];
+
+	/*
+	 * Pop the cleanignore lists from the CLEANIGNORE_DIRS group
+	 * which originate from directories not in the prefix of the
+	 * path being checked.
+	 */
+	while ((stk = ci->stack) != NULL) {
+		if (stk->baselen <= baselen &&
+		    !strncmp(ci->basebuf.buf, base, stk->baselen))
+			break;
+		pl = &group->pl[ci->stack->exclude_ix];
+		ci->stack = stk->prev;
+		free((char *)pl->src); /* see strbuf_detach() below */
+		clear_pattern_list(pl);
+		free(stk);
+		group->nr--;
+	}
+
+	/*
+	 * Lazy initialization.
+	 */
+	if (!ci->basebuf.buf)
+		strbuf_init(&ci->basebuf, PATH_MAX);
+
+	/* Read from the parent directories and push them down. */
+	current = stk ? stk->baselen : -1;
+	strbuf_setlen(&ci->basebuf, current < 0 ? 0 : current);
+
+	while (current < baselen) {
+		const char *cp;
+
+		CALLOC_ARRAY(stk, 1);
+		if (current < 0) {
+			cp = base;
+			current = 0;
+		} else {
+			cp = strchr(base + current + 1, '/');
+			if (!cp)
+				die("oops in prep_cleanignore");
+			cp++;
+		}
+		stk->prev = ci->stack;
+		stk->baselen = cp - base;
+		stk->exclude_ix = group->nr;
+		stk->ucd = NULL;
+		pl = cleanignore_add_pattern_list(ci, CLEANIGNORE_DIRS, NULL);
+		strbuf_add(&ci->basebuf, base + current, stk->baselen - current);
+		assert(stk->baselen == ci->basebuf.len);
+
+		/* Try to read per-directory file */
+		if (ci->per_dir_file) {
+			struct strbuf sb = STRBUF_INIT;
+			strbuf_addbuf(&sb, &ci->basebuf);
+			strbuf_addstr(&sb, ci->per_dir_file);
+			pl->src = strbuf_detach(&sb, NULL);
+			add_patterns_from_file_to_list(pl->src, ci->basebuf.buf,
+						       stk->baselen, pl,
+						       istate, PATTERN_NOFOLLOW);
+		}
+
+		ci->stack = stk;
+		current = stk->baselen;
+	}
+	strbuf_setlen(&ci->basebuf, baselen);
+}
+
+/*
+ * Find the last matching pattern from cleanignore lists.
+ */
+struct path_pattern *last_matching_cleanignore_pattern(
+		struct cleanignore_struct *ci,
+		struct index_state *istate,
+		const char *pathname, int pathlen,
+		const char *basename, int *dtype_p)
+{
+	int i, j;
+	struct exclude_list_group *group;
+	struct path_pattern *pattern;
+
+	for (i = CLEANIGNORE_CMDL; i <= CLEANIGNORE_FILE; i++) {
+		group = &ci->groups[i];
+		for (j = group->nr - 1; j >= 0; j--) {
+			pattern = last_matching_pattern_from_list(
+				pathname, pathlen, basename, dtype_p,
+				&group->pl[j], istate);
+			if (pattern)
+				return pattern;
+		}
+	}
+	return NULL;
+}
+
+/*
+ * Check if a path is protected by cleanignore.
+ * Returns 1 if the path should be protected (not cleaned), 0 otherwise.
+ */
+int is_cleanignored(struct cleanignore_struct *ci,
+		    struct index_state *istate,
+		    const char *pathname, int *dtype)
+{
+	struct path_pattern *pattern;
+	int pathlen = strlen(pathname);
+	const char *basename;
+	const char *p;
+
+	/* Strip trailing slash for matching (directories come with trailing /) */
+	if (pathlen > 0 && pathname[pathlen - 1] == '/')
+		pathlen--;
+
+	/* Find the last slash before pathlen */
+	basename = NULL;
+	for (p = pathname; p < pathname + pathlen; p++) {
+		if (*p == '/')
+			basename = p;
+	}
+	basename = basename ? basename + 1 : pathname;
+
+	prep_cleanignore(ci, istate, pathname, basename - pathname);
+
+	pattern = last_matching_cleanignore_pattern(ci, istate,
+						    pathname, pathlen,
+						    basename, dtype);
+	if (pattern)
+		return pattern->flags & PATTERN_FLAG_NEGATIVE ? 0 : 1;
+	return 0;
+}
+
+/*
+ * Free memory used by cleanignore struct.
+ */
+void cleanignore_clear(struct cleanignore_struct *ci)
+{
+	int i, j;
+	struct exclude_list_group *group;
+	struct pattern_list *pl;
+	struct exclude_stack *stk;
+
+	for (i = CLEANIGNORE_CMDL; i <= CLEANIGNORE_FILE; i++) {
+		group = &ci->groups[i];
+		for (j = 0; j < group->nr; j++) {
+			pl = &group->pl[j];
+			if (i == CLEANIGNORE_DIRS)
+				free((char *)pl->src);
+			clear_pattern_list(pl);
+		}
+		free(group->pl);
+	}
+
+	stk = ci->stack;
+	while (stk) {
+		struct exclude_stack *prev = stk->prev;
+		free(stk);
+		stk = prev;
+	}
+
+	strbuf_release(&ci->basebuf);
 }
 
 char *get_sparse_checkout_filename(void)

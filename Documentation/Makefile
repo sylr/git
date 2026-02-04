@@ -39,6 +39,7 @@ MAN5_TXT += gitformat-pack.adoc
 MAN5_TXT += gitformat-signature.adoc
 MAN5_TXT += githooks.adoc
 MAN5_TXT += gitignore.adoc
+MAN5_TXT += gitcleanignore.adoc
 MAN5_TXT += gitmailmap.adoc
 MAN5_TXT += gitmodules.adoc
 MAN5_TXT += gitprotocol-capabilities.adoc
