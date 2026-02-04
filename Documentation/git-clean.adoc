@@ -23,6 +23,11 @@ example, be useful to remove all build products.
 If any optional `<pathspec>...` arguments are given, only those paths
 that match the pathspec are affected.
 
+Files can be protected from removal by listing them in a `.gitcleanignore`
+file (see linkgit:gitcleanignore[5]).  Unlike `.gitignore`, which only
+protects files when not using `-x` or `-X`, `.gitcleanignore` patterns
+always apply regardless of which flags are used.
+
 OPTIONS
 -------
 -d::
@@ -146,7 +151,8 @@ include::config/clean.adoc[]
 
 SEE ALSO
 --------
-linkgit:gitignore[5]
+linkgit:gitignore[5],
+linkgit:gitcleanignore[5]
 
 GIT
 ---

@@ -118,6 +118,7 @@ struct repo_config_values {
 	/* section "core" config values */
 	char *attributes_file;
 	char *excludes_file;
+	char *clean_excludes_file;
 	char *editor_program;
 	char *pager_program;
 	char *askpass_program;
@@ -194,6 +195,8 @@ int repo_trust_executable_bit(struct repository *repo);
 int repo_has_symlinks(struct repository *repo);
 
 const char *repo_excludes_file(struct repository *repo);
+
+const char *repo_clean_excludes_file(struct repository *repo);
 
 void repo_config_values_init(struct repo_config_values *cfg);
 

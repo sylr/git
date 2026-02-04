@@ -162,6 +162,16 @@ const char *repo_excludes_file(struct repository *repo)
 	return cfg->excludes_file;
 }
 
+const char *repo_clean_excludes_file(struct repository *repo)
+{
+	struct repo_config_values *cfg = repo_config_values(repo);
+
+	if (!cfg->clean_excludes_file)
+		cfg->clean_excludes_file = xdg_config_home("cleanignore");
+
+	return cfg->clean_excludes_file;
+}
+
 int have_git_dir(void)
 {
 	return startup_info->have_repository
@@ -494,6 +504,11 @@ int git_default_core_config(const char *var, const char *value,
 		return git_config_pathname(&cfg->excludes_file, var, value);
 	}
 
+	if (!strcmp(var, "core.cleanexcludesfile")) {
+		FREE_AND_NULL(cfg->clean_excludes_file);
+		return git_config_pathname(&cfg->clean_excludes_file, var, value);
+	}
+
 	if (!strcmp(var, "core.whitespace")) {
 		if (!value)
 			return config_error_nonbool(var);
@@ -747,6 +762,7 @@ void repo_config_values_init(struct repo_config_values *cfg)
 {
 	cfg->attributes_file = NULL;
 	cfg->excludes_file = NULL;
+	cfg->clean_excludes_file = NULL;
 	cfg->editor_program = NULL;
 	cfg->pager_program = NULL;
 	cfg->askpass_program = NULL;
@@ -776,6 +792,7 @@ void repo_config_values_clear(struct repo_config_values *cfg)
 {
 	FREE_AND_NULL(cfg->attributes_file);
 	FREE_AND_NULL(cfg->excludes_file);
+	FREE_AND_NULL(cfg->clean_excludes_file);
 	FREE_AND_NULL(cfg->editor_program);
 	FREE_AND_NULL(cfg->pager_program);
 	FREE_AND_NULL(cfg->askpass_program);
