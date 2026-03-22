@@ -362,6 +362,7 @@ struct dir_struct {
  * Cleanignore structure for protecting files from git clean.
  * Similar to exclude handling, but independent from gitignore.
  */
+/* Reserved for future --exclude flag on check-cleanignore (mirrors EXC_CMDL) */
 #define CLEANIGNORE_CMDL 0
 #define CLEANIGNORE_DIRS 1
 #define CLEANIGNORE_FILE 2
@@ -387,6 +388,11 @@ struct path_pattern *last_matching_cleanignore_pattern(
 		struct index_state *istate,
 		const char *pathname, int pathlen,
 		const char *basename, int *dtype_p);
+void cleanignore_prep_path(struct cleanignore_struct *ci,
+			   struct index_state *istate,
+			   const char *pathname,
+			   int *pathlen_out,
+			   const char **basename_out);
 int is_cleanignored(struct cleanignore_struct *ci,
 		    struct index_state *istate,
 		    const char *pathname, int *dtype);
