@@ -613,6 +613,7 @@ builtin_sources = [
   'builtin/cat-file.c',
   'builtin/check-attr.c',
   'builtin/check-ignore.c',
+  'builtin/check-cleanignore.c',
   'builtin/check-mailmap.c',
   'builtin/check-ref-format.c',
   'builtin/checkout--worker.c',

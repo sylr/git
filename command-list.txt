@@ -69,6 +69,7 @@ git-bundle                              mainporcelain
 git-cat-file                            plumbinginterrogators
 git-check-attr                          purehelpers
 git-check-ignore                        purehelpers
+git-check-cleanignore                   purehelpers
 git-check-mailmap                       purehelpers
 git-check-ref-format                    purehelpers
 git-checkout                            mainporcelain
