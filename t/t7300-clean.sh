@@ -946,6 +946,67 @@ test_expect_success '.gitcleanignore directory patterns work' '
 	)
 '
 
+test_expect_success 'cleanignore protects descendant inside untracked dir with -fd' '
+	(
+		cd cleanignore-tests &&
+		mkdir -p sub &&
+		>sub/keep &&
+		>sub/drop &&
+		echo "sub/keep" >.gitcleanignore &&
+		git clean -fd &&
+		test_path_is_dir sub &&
+		test_path_is_file sub/keep &&
+		test_path_is_missing sub/drop &&
+		rm -rf sub .gitcleanignore
+	)
+'
+
+test_expect_success 'nested .gitcleanignore protects child with -fdx' '
+	(
+		cd cleanignore-tests &&
+		mkdir -p sub &&
+		>sub/keep &&
+		>sub/drop &&
+		echo "keep" >sub/.gitcleanignore &&
+		git clean -fdx &&
+		test_path_is_dir sub &&
+		test_path_is_file sub/keep &&
+		test_path_is_missing sub/drop &&
+		test_path_is_file sub/.gitcleanignore &&
+		rm -rf sub
+	)
+'
+
+test_expect_success 'glob cleanignore pattern protects nested file with -fd' '
+	(
+		cd cleanignore-tests &&
+		mkdir -p sub &&
+		>sub/keep &&
+		>sub/drop &&
+		echo "sub/**/keep" >.gitcleanignore &&
+		git clean -fd &&
+		test_path_is_dir sub &&
+		test_path_is_file sub/keep &&
+		test_path_is_missing sub/drop &&
+		rm -rf sub .gitcleanignore
+	)
+'
+
+test_expect_success 'core.cleanExcludesFile protects descendant inside dir with -fd' '
+	(
+		cd cleanignore-tests &&
+		mkdir -p sub &&
+		>sub/keep &&
+		>sub/drop &&
+		echo "sub/keep" >"$TRASH_DIRECTORY/global_cleanignore" &&
+		git -c core.cleanExcludesFile="$TRASH_DIRECTORY/global_cleanignore" clean -fd &&
+		test_path_is_dir sub &&
+		test_path_is_file sub/keep &&
+		test_path_is_missing sub/drop &&
+		rm -rf sub "$TRASH_DIRECTORY/global_cleanignore"
+	)
+'
+
 test_expect_success 'cleanignore priority: per-directory overrides global' '
 	(
 		cd cleanignore-tests &&
