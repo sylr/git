@@ -3579,12 +3579,6 @@ void prep_cleanignore(struct cleanignore_struct *ci,
 		group->nr--;
 	}
 
-	/*
-	 * Lazy initialization.
-	 */
-	if (!ci->basebuf.buf)
-		strbuf_init(&ci->basebuf, PATH_MAX);
-
 	/* Read from the parent directories and push them down. */
 	current = stk ? stk->baselen : -1;
 	strbuf_setlen(&ci->basebuf, current < 0 ? 0 : current);
@@ -3654,14 +3648,16 @@ struct path_pattern *last_matching_cleanignore_pattern(
 }
 
 /*
- * Check if a path is protected by cleanignore.
- * Returns 1 if the path should be protected (not cleaned), 0 otherwise.
+ * Prepare pathname for cleanignore matching: strip trailing slash,
+ * find basename, and call prep_cleanignore.  Returns pathlen after
+ * stripping.
  */
-int is_cleanignored(struct cleanignore_struct *ci,
-		    struct index_state *istate,
-		    const char *pathname, int *dtype)
+void cleanignore_prep_path(struct cleanignore_struct *ci,
+			   struct index_state *istate,
+			   const char *pathname,
+			   int *pathlen_out,
+			   const char **basename_out)
 {
-	struct path_pattern *pattern;
 	int pathlen = strlen(pathname);
 	const char *basename;
 	const char *p;
@@ -3679,6 +3675,24 @@ int is_cleanignored(struct cleanignore_struct *ci,
 	basename = basename ? basename + 1 : pathname;
 
 	prep_cleanignore(ci, istate, pathname, basename - pathname);
+
+	*pathlen_out = pathlen;
+	*basename_out = basename;
+}
+
+/*
+ * Check if a path is protected by cleanignore.
+ * Returns 1 if the path should be protected (not cleaned), 0 otherwise.
+ */
+int is_cleanignored(struct cleanignore_struct *ci,
+		    struct index_state *istate,
+		    const char *pathname, int *dtype)
+{
+	struct path_pattern *pattern;
+	int pathlen;
+	const char *basename;
+
+	cleanignore_prep_path(ci, istate, pathname, &pathlen, &basename);
 
 	pattern = last_matching_cleanignore_pattern(ci, istate,
 						    pathname, pathlen,

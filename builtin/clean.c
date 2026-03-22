@@ -161,7 +161,8 @@ static int exclude_cb(const struct option *opt, const char *arg, int unset)
 }
 
 static int remove_dirs(struct strbuf *path, const char *prefix, int force_flag,
-		int dry_run, int quiet, int *dir_gone)
+		int dry_run, int quiet, int *dir_gone,
+		struct cleanignore_struct *ci, struct index_state *istate)
 {
 	DIR *dir;
 	struct strbuf quoted = STRBUF_INIT;
@@ -205,13 +206,23 @@ static int remove_dirs(struct strbuf *path, const char *prefix, int force_flag,
 	len = path->len;
 	while ((e = readdir_skip_dot_and_dotdot(dir)) != NULL) {
 		struct stat st;
+		int dtype;
 
 		strbuf_setlen(path, len);
 		strbuf_addstr(path, e->d_name);
 		if (lstat(path->buf, &st))
 			warning_errno(_(msg_warn_lstat_failed), path->buf);
 		else if (S_ISDIR(st.st_mode)) {
-			if (remove_dirs(path, prefix, force_flag, dry_run, quiet, &gone))
+			/* Check if directory itself is protected by cleanignore */
+			if (ci) {
+				dtype = DT_DIR;
+				if (is_cleanignored(ci, istate, path->buf, &dtype)) {
+					*dir_gone = 0;
+					continue;
+				}
+			}
+			if (remove_dirs(path, prefix, force_flag, dry_run, quiet, &gone,
+					ci, istate))
 				ret = 1;
 			if (gone) {
 				quote_path(path->buf, prefix, &quoted, 0);
@@ -220,6 +231,23 @@ static int remove_dirs(struct strbuf *path, const char *prefix, int force_flag,
 				*dir_gone = 0;
 			continue;
 		} else {
+			/* Check if file is protected by cleanignore */
+			if (ci) {
+				dtype = DT_REG;
+				if (is_cleanignored(ci, istate, path->buf, &dtype)) {
+					*dir_gone = 0;
+					continue;
+				}
+				/*
+				 * Protect per-directory .gitcleanignore files
+				 * from removal, as they define the protection
+				 * rules for their directory.
+				 */
+				if (!strcmp(e->d_name, ".gitcleanignore")) {
+					*dir_gone = 0;
+					continue;
+				}
+			}
 			res = dry_run ? 0 : unlink(path->buf);
 			if (!res) {
 				quote_path(path->buf, prefix, &quoted, 0);
@@ -1079,7 +1107,8 @@ int cmd_clean(int argc,
 			continue;
 
 		if (S_ISDIR(st.st_mode)) {
-			if (remove_dirs(&abs_path, prefix, rm_flags, dry_run, quiet, &gone))
+			if (remove_dirs(&abs_path, prefix, rm_flags, dry_run, quiet, &gone,
+					&cleanignore, the_repository->index))
 				errors++;
 			if (gone && !quiet) {
 				qname = quote_path(item->string, NULL, &buf, 0);
