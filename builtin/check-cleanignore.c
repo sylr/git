@@ -85,29 +85,14 @@ static struct path_pattern *last_matching_cleanignore_pattern_for_path(
 		const char *pathname,
 		int *dtype)
 {
-	struct path_pattern *pattern;
-	int pathlen = strlen(pathname);
+	int pathlen;
 	const char *basename;
-	const char *p;
 
-	/* Strip trailing slash for matching (directories come with trailing /) */
-	if (pathlen > 0 && pathname[pathlen - 1] == '/')
-		pathlen--;
+	cleanignore_prep_path(ci, istate, pathname, &pathlen, &basename);
 
-	/* Find the last slash before pathlen */
-	basename = NULL;
-	for (p = pathname; p < pathname + pathlen; p++) {
-		if (*p == '/')
-			basename = p;
-	}
-	basename = basename ? basename + 1 : pathname;
-
-	prep_cleanignore(ci, istate, pathname, basename - pathname);
-
-	pattern = last_matching_cleanignore_pattern(ci, istate,
-						    pathname, pathlen,
-						    basename, dtype);
-	return pattern;
+	return last_matching_cleanignore_pattern(ci, istate,
+						 pathname, pathlen,
+						 basename, dtype);
 }
 
 static int check_cleanignore(struct cleanignore_struct *ci,
