@@ -23,6 +23,11 @@ listed in `.gitignore` are already protected from `git clean` by default
 (unless `-x` or `-X` is used), while files in `.gitcleanignore` are
 protected even when using `-x` or `-X` flags.
 
+A `.gitcleanignore` file is itself never removed by `git clean`, whatever
+the patterns say (not even a negated pattern re-exposes it), so that the
+rules it defines survive the cleaning.  linkgit:git-check-cleanignore[1]
+reports pattern matches only and does not show this implicit rule.
+
 Each line in a `gitcleanignore` file specifies a pattern.
 When deciding whether to protect a path from cleaning, Git checks
 `gitcleanignore` patterns from multiple sources, with the following
