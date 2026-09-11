@@ -75,26 +75,6 @@ static void output_pattern(const char *path, struct path_pattern *pattern)
 	}
 }
 
-/*
- * Return the matching cleanignore pattern for a path, or NULL if not protected.
- * This is similar to last_matching_pattern() but for cleanignore.
- */
-static struct path_pattern *last_matching_cleanignore_pattern_for_path(
-		struct cleanignore_struct *ci,
-		struct index_state *istate,
-		const char *pathname,
-		int *dtype)
-{
-	int pathlen;
-	const char *basename;
-
-	cleanignore_prep_path(ci, istate, pathname, &pathlen, &basename);
-
-	return last_matching_cleanignore_pattern(ci, istate,
-						 pathname, pathlen,
-						 basename, dtype);
-}
-
 static int check_cleanignore(struct cleanignore_struct *ci,
 			     const char *prefix, int argc, const char **argv)
 {
@@ -132,8 +112,8 @@ static int check_cleanignore(struct cleanignore_struct *ci,
 	for (i = 0; i < pathspec.nr; i++) {
 		int dtype = DT_UNKNOWN;
 		full_path = pathspec.items[i].match;
-		pattern = last_matching_cleanignore_pattern_for_path(ci,
-				the_repository->index, full_path, &dtype);
+		pattern = cleanignore_deciding_pattern(ci, the_repository->index,
+						       full_path, &dtype);
 		if (!verbose && pattern &&
 		    pattern->flags & PATTERN_FLAG_NEGATIVE)
 			pattern = NULL;
