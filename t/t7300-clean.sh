@@ -1319,6 +1319,17 @@ test_expect_success 'anchored cleanignore rules apply to ../ pathspecs from a su
 	)
 '
 
+test_expect_success 'core.cleanExcludesFile defaults to $XDG_CONFIG_HOME/git/cleanignore' '
+	mkdir -p "$TRASH_DIRECTORY/xdg/git" &&
+	echo "xdg_protected" >"$TRASH_DIRECTORY/xdg/git/cleanignore" &&
+	test_when_finished "rm -rf \"$TRASH_DIRECTORY/xdg\" cleanignore-tests/xdg_protected" &&
+	>cleanignore-tests/xdg_protected &&
+	>cleanignore-tests/xdg_drop &&
+	XDG_CONFIG_HOME="$TRASH_DIRECTORY/xdg" git -C cleanignore-tests clean -f &&
+	test_path_is_file cleanignore-tests/xdg_protected &&
+	test_path_is_missing cleanignore-tests/xdg_drop
+'
+
 test_expect_success SYMLINKS 'negated symlink is unlinked without touching its target' '
 	(
 		cd cleanignore-tests &&

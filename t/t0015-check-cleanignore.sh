@@ -247,4 +247,31 @@ test_expect_success 'check-cleanignore -v shows negations without claiming prote
 	)
 '
 
+test_expect_success 'check-cleanignore -z --stdin' '
+	(
+		cd repo &&
+		echo "protected.txt" >.gitcleanignore &&
+		printf "%s\0%s\0" protected.txt other.txt |
+		git check-cleanignore -z --stdin >actual &&
+		printf "%s\0" protected.txt >expect &&
+		test_cmp expect actual &&
+		printf "%s\0" protected.txt |
+		git check-cleanignore -z -v --stdin >actual &&
+		printf "%s\0%s\0%s\0%s\0" .gitcleanignore 1 protected.txt protected.txt >expect &&
+		test_cmp expect actual
+	)
+'
+
+test_expect_success 'check-cleanignore rejects invalid option combinations' '
+	(
+		cd repo &&
+		test_must_fail git check-cleanignore -q a b &&
+		test_must_fail git check-cleanignore -q -v a &&
+		test_must_fail git check-cleanignore -n a &&
+		test_must_fail git check-cleanignore -z a &&
+		test_must_fail git check-cleanignore --stdin a </dev/null &&
+		test_must_fail git check-cleanignore
+	)
+'
+
 test_done
