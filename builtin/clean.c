@@ -1075,6 +1075,13 @@ int cmd_clean(int argc,
 		if (S_ISDIR(st.st_mode) && !remove_directories)
 			continue;
 
+		/* like remove_dirs(): never remove the rules themselves */
+		if (!S_ISDIR(st.st_mode)) {
+			const char *base = strrchr(ent->name, '/');
+			if (!strcmp(base ? base + 1 : ent->name, ".gitcleanignore"))
+				continue;
+		}
+
 		/* Check if protected by cleanignore */
 		if (is_cleanignored(&cleanignore, the_repository->index,
 				    ent->name, &dtype))

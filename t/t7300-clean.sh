@@ -1020,4 +1020,16 @@ test_expect_success 'cleanignore priority: per-directory overrides global' '
 	)
 '
 
+test_expect_success 'top-level .gitcleanignore is never removed' '
+	(
+		cd cleanignore-tests &&
+		>untracked_file &&
+		echo "unrelated" >.gitcleanignore &&
+		git clean -fdx &&
+		test_path_is_missing untracked_file &&
+		test_path_is_file .gitcleanignore &&
+		rm -f .gitcleanignore
+	)
+'
+
 test_done
