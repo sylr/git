@@ -1032,4 +1032,290 @@ test_expect_success 'top-level .gitcleanignore is never removed' '
 	)
 '
 
+test_expect_success 'negated cleanignore pattern re-exposes dir inside protected dir' '
+	(
+		cd cleanignore-tests &&
+		mkdir -p protected_dir/tmp protected_dir/sub &&
+		>protected_dir/file &&
+		>protected_dir/sub/file &&
+		>protected_dir/tmp/scratch &&
+		cat >.gitcleanignore <<-\EOF &&
+		protected_dir/
+		!protected_dir/tmp/
+		EOF
+		git clean -fd &&
+		test_path_is_missing protected_dir/tmp &&
+		test_path_is_file protected_dir/file &&
+		test_path_is_file protected_dir/sub/file &&
+		rm -rf protected_dir .gitcleanignore
+	)
+'
+
+test_expect_success 'global !**/node_modules removes node_modules under protected dir' '
+	(
+		cd cleanignore-tests &&
+		mkdir -p wt/a/node_modules/pkg wt/b/node_modules &&
+		>wt/a/node_modules/pkg/x.js &&
+		>wt/a/src.js &&
+		>wt/b/node_modules/y &&
+		cat >"$TRASH_DIRECTORY/global_cleanignore" <<-\EOF &&
+		wt/
+		!**/node_modules
+		EOF
+		git -c core.cleanExcludesFile="$TRASH_DIRECTORY/global_cleanignore" clean -fdx >"$TRASH_DIRECTORY/out" &&
+		test_path_is_missing wt/a/node_modules &&
+		test_path_is_missing wt/b/node_modules &&
+		test_path_is_file wt/a/src.js &&
+		test_path_is_dir wt/b &&
+		cat >"$TRASH_DIRECTORY/expect" <<-\EOF &&
+		Removing wt/a/node_modules
+		Removing wt/b/node_modules
+		EOF
+		test_cmp "$TRASH_DIRECTORY/expect" "$TRASH_DIRECTORY/out" &&
+		rm -rf wt "$TRASH_DIRECTORY/global_cleanignore"
+	)
+'
+
+test_expect_success 'protected dir emptied by negation is kept' '
+	(
+		cd cleanignore-tests &&
+		mkdir -p keep/tmp &&
+		>keep/tmp/f &&
+		cat >.gitcleanignore <<-\EOF &&
+		keep/
+		!keep/tmp
+		EOF
+		git clean -fd &&
+		test_path_is_dir keep &&
+		test_path_is_missing keep/tmp &&
+		rm -rf keep .gitcleanignore
+	)
+'
+
+test_expect_success 'per-directory negation inside protected tree' '
+	(
+		cd cleanignore-tests &&
+		mkdir -p wt/a/node_modules &&
+		>wt/a/node_modules/x &&
+		>wt/a/keep &&
+		echo "wt/" >.gitcleanignore &&
+		echo "!node_modules" >wt/a/.gitcleanignore &&
+		git clean -fdx &&
+		test_path_is_missing wt/a/node_modules &&
+		test_path_is_file wt/a/keep &&
+		test_path_is_file wt/a/.gitcleanignore &&
+		rm -rf wt .gitcleanignore
+	)
+'
+
+test_expect_success 'directory pattern protects descendants of partially tracked dir' '
+	(
+		cd cleanignore-tests &&
+		mkdir -p a/b &&
+		>a/tracked &&
+		git add a/tracked &&
+		>a/b/file &&
+		>a/loose &&
+		echo "a/" >.gitcleanignore &&
+		git clean -fd &&
+		test_path_is_file a/b/file &&
+		test_path_is_file a/loose &&
+		git rm -q --cached a/tracked &&
+		rm -rf a .gitcleanignore
+	)
+'
+
+test_expect_success 'negation inside nested repository needs -ff' '
+	(
+		cd cleanignore-tests &&
+		mkdir -p wt &&
+		git init -q wt/repo &&
+		mkdir -p wt/repo/node_modules &&
+		>wt/repo/node_modules/x &&
+		>wt/repo/src &&
+		cat >.gitcleanignore <<-\EOF &&
+		wt/
+		!**/node_modules
+		EOF
+		git clean -fdx &&
+		test_path_is_file .gitcleanignore &&
+		test_path_is_file wt/repo/node_modules/x &&
+		git clean -ffdx &&
+		test_path_is_missing wt/repo/node_modules &&
+		test_path_is_file wt/repo/src &&
+		test_path_is_dir wt/repo/.git &&
+		rm -rf wt .gitcleanignore
+	)
+'
+
+test_expect_success 'interactive clean skips protected candidates but applies nested negations' '
+	(
+		cd cleanignore-tests &&
+		mkdir -p outer/keep/tmp prot &&
+		>outer/keep/tmp/f &&
+		>outer/keep/x &&
+		>outer/y &&
+		>prot/f &&
+		cat >.gitcleanignore <<-\EOF &&
+		outer/keep/
+		!outer/keep/tmp/
+		prot/
+		EOF
+		echo c | git clean -id &&
+		test_path_is_file prot/f &&
+		test_path_is_missing outer/y &&
+		test_path_is_missing outer/keep/tmp &&
+		test_path_is_file outer/keep/x &&
+		rm -rf outer prot .gitcleanignore
+	)
+'
+
+test_expect_success 'alternating protect/negate/protect along a path' '
+	(
+		cd cleanignore-tests &&
+		mkdir -p a/b/c &&
+		>a/other &&
+		>a/b/x &&
+		>a/b/c/y &&
+		cat >.gitcleanignore <<-\EOF &&
+		a/
+		!a/b/
+		a/b/c/
+		EOF
+		git clean -fd &&
+		test_path_is_file a/other &&
+		test_path_is_missing a/b/x &&
+		test_path_is_file a/b/c/y &&
+		rm -rf a .gitcleanignore
+	)
+'
+
+test_expect_success 'direct match from lower-priority source beats inherited protection' '
+	(
+		cd cleanignore-tests &&
+		mkdir -p wt/x &&
+		>wt/x/foo.log &&
+		>wt/x/bar &&
+		echo "wt/" >.gitcleanignore &&
+		echo "!wt/x/foo.log" >"$TRASH_DIRECTORY/global_cleanignore" &&
+		git -c core.cleanExcludesFile="$TRASH_DIRECTORY/global_cleanignore" clean -fd &&
+		test_path_is_missing wt/x/foo.log &&
+		test_path_is_file wt/x/bar &&
+		rm -rf wt .gitcleanignore "$TRASH_DIRECTORY/global_cleanignore"
+	)
+'
+
+test_expect_success 'nested .gitcleanignore does not protect its ancestors or siblings' '
+	(
+		cd cleanignore-tests &&
+		mkdir -p sub/inner sub/sibling &&
+		>sub/keep &&
+		>sub/sibling/keep &&
+		>sub/inner/keep &&
+		>sub/inner/drop &&
+		echo "keep" >sub/inner/.gitcleanignore &&
+		git clean -fd &&
+		test_path_is_missing sub/keep &&
+		test_path_is_missing sub/sibling &&
+		test_path_is_file sub/inner/keep &&
+		test_path_is_missing sub/inner/drop &&
+		rm -rf sub
+	)
+'
+
+test_expect_success SANITY 'protected unreadable empty directory is kept' '
+	mkdir cleanignore-tests/foo &&
+	chmod a= cleanignore-tests/foo &&
+	echo "foo/" >cleanignore-tests/.gitcleanignore &&
+	test_when_finished "chmod 755 cleanignore-tests/foo &&
+			    rm -rf cleanignore-tests/foo cleanignore-tests/.gitcleanignore" &&
+	git -C cleanignore-tests clean -ndfx >out &&
+	! grep foo out &&
+	git -C cleanignore-tests clean -dfx &&
+	test_path_is_dir cleanignore-tests/foo
+'
+
+test_expect_success 'deeply nested negation with many per-directory frames' '
+	(
+		cd cleanignore-tests &&
+		dir=deep &&
+		for i in $(test_seq 1 30)
+		do
+			dir="$dir/level_$i" || exit 1
+		done &&
+		mkdir -p "$dir" &&
+		>"$dir/drop" &&
+		>"$dir/keep" &&
+		echo "!drop" >"$dir/.gitcleanignore" &&
+		echo "deep/" >.gitcleanignore &&
+		git check-cleanignore -v "$dir/keep" >actual &&
+		grep "^.gitcleanignore:1:deep/	" actual &&
+		git clean -fd &&
+		test_path_is_missing "$dir/drop" &&
+		test_path_is_file "$dir/keep" &&
+		rm -rf deep .gitcleanignore actual
+	)
+'
+
+test_expect_success 'inherited protection with -X and negated subdirectory' '
+	(
+		cd cleanignore-tests &&
+		mkdir -p logs/tmp &&
+		>logs/a.log &&
+		>logs/tmp/b.log &&
+		>logs/keep.txt &&
+		echo "*.log" >.gitignore &&
+		cat >.gitcleanignore <<-\EOF &&
+		logs/
+		!logs/tmp/
+		EOF
+		git clean -fdX &&
+		test_path_is_file logs/a.log &&
+		test_path_is_missing logs/tmp/b.log &&
+		test_path_is_file logs/keep.txt &&
+		rm -rf logs .gitignore .gitcleanignore
+	)
+'
+
+test_expect_success 'pathspec-limited clean from subdirectory honours negation' '
+	(
+		cd cleanignore-tests &&
+		mkdir -p wt/a/node_modules wt/b/node_modules &&
+		>wt/a/node_modules/x &&
+		>wt/a/src &&
+		>wt/b/node_modules/y &&
+		cat >"$TRASH_DIRECTORY/global_cleanignore" <<-\EOF &&
+		wt/
+		!**/node_modules
+		EOF
+		(
+			cd wt &&
+			git -c core.cleanExcludesFile="$TRASH_DIRECTORY/global_cleanignore" clean -fdx a
+		) &&
+		test_path_is_missing wt/a/node_modules &&
+		test_path_is_file wt/a/src &&
+		test_path_is_file wt/b/node_modules/y &&
+		rm -rf wt "$TRASH_DIRECTORY/global_cleanignore"
+	)
+'
+
+test_expect_success SYMLINKS 'negated symlink is unlinked without touching its target' '
+	(
+		cd cleanignore-tests &&
+		mkdir -p wt/a target &&
+		>target/f &&
+		ln -s ../../target wt/a/node_modules &&
+		cat >.gitcleanignore <<-\EOF &&
+		wt/
+		target/
+		!**/node_modules
+		EOF
+		git clean -fdx &&
+		test_path_is_missing wt/a/node_modules &&
+		test_path_is_file target/f &&
+		test_path_is_dir wt/a &&
+		rm -rf wt target .gitcleanignore
+	)
+'
+
 test_done

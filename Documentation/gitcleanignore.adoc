@@ -79,6 +79,22 @@ The pattern format is identical to that of linkgit:gitignore[5]:
    unprotected again.
    Put a backslash ("`\`") in front of the first "`!`" for patterns
    that begin with a literal "`!`", for example, "`\!important!.txt`".
++
+Unlike linkgit:gitignore[5], a path inside a protected directory *can*
+be re-exposed to cleaning: a path that no pattern matches inherits the
+status of its parent directory, and the nearest matching entry wins.
+So `bin/` followed by `!bin/tmp/` protects everything under `bin/`
+except the `bin/tmp/` directory, which `git clean -d` traverses and
+removes (the protected `bin/` directory itself is kept, even when that
+leaves it empty).
++
+Two caveats: inside a nested repository (for example a linked worktree)
+such negated paths are only removed with `git clean -ff`, because a
+single `-f` never enters nested repositories; and in interactive mode
+(`git clean -i`) directories which are themselves protected are not
+offered as candidates, so negations inside them only take effect when
+they are reached through an unprotected parent directory that was
+selected.
 
  - The slash "`/`" is used as the directory separator. Separators may
    occur at the beginning, middle or end of the `.gitcleanignore` search pattern.
@@ -145,6 +161,15 @@ To protect certain build artifacts while allowing others to be cleaned:
 
     # But allow cleaning temporary build files
     !bin/tmp/
+--------------------------------------------------------------
+
+To keep local worktrees checked out under `.claude/worktrees/` while still
+letting `git clean -ffdx` reclaim their `node_modules` directories:
+
+--------------------------------------------------------------
+    $ cat ~/.config/git/cleanignore
+    .claude/worktrees/
+    !**/node_modules
 --------------------------------------------------------------
 
 Using the global cleanignore file for editor backup files:

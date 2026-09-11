@@ -26,7 +26,9 @@ that match the pathspec are affected.
 Files can be protected from removal by listing them in a `.gitcleanignore`
 file (see linkgit:gitcleanignore[5]).  Unlike `.gitignore`, which only
 protects files when not using `-x` or `-X`, `.gitcleanignore` patterns
-always apply regardless of which flags are used.
+always apply regardless of which flags are used.  Protected directories
+are still traversed so that negated (`!`) patterns can re-expose paths
+inside them; within a nested repository this requires `-ff`.
 
 OPTIONS
 -------

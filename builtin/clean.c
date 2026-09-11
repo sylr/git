@@ -160,9 +160,15 @@ static int exclude_cb(const struct option *opt, const char *arg, int unset)
 	return 0;
 }
 
+/*
+ * "protected" says whether the directory itself is protected by cleanignore,
+ * directly or inherited from an ancestor.  Protected directories are still
+ * traversed: a negated cleanignore pattern may re-expose paths inside them.
+ */
 static int remove_dirs(struct strbuf *path, const char *prefix, int force_flag,
 		int dry_run, int quiet, int *dir_gone,
-		struct cleanignore_struct *ci, struct index_state *istate)
+		struct cleanignore_struct *ci, struct index_state *istate,
+		int protected)
 {
 	DIR *dir;
 	struct strbuf quoted = STRBUF_INIT;
@@ -188,6 +194,10 @@ static int remove_dirs(struct strbuf *path, const char *prefix, int force_flag,
 
 	dir = opendir(path->buf);
 	if (!dir) {
+		if (protected) {
+			*dir_gone = 0;
+			goto out;
+		}
 		/* an empty dir could be removed even if it is unreadble */
 		res = dry_run ? 0 : rmdir(path->buf);
 		if (res) {
@@ -206,23 +216,21 @@ static int remove_dirs(struct strbuf *path, const char *prefix, int force_flag,
 	len = path->len;
 	while ((e = readdir_skip_dot_and_dotdot(dir)) != NULL) {
 		struct stat st;
-		int dtype;
+		int dtype, match, child_protected = protected;
 
 		strbuf_setlen(path, len);
 		strbuf_addstr(path, e->d_name);
 		if (lstat(path->buf, &st))
 			warning_errno(_(msg_warn_lstat_failed), path->buf);
 		else if (S_ISDIR(st.st_mode)) {
-			/* Check if directory itself is protected by cleanignore */
 			if (ci) {
 				dtype = DT_DIR;
-				if (is_cleanignored(ci, istate, path->buf, &dtype)) {
-					*dir_gone = 0;
-					continue;
-				}
+				match = cleanignore_match(ci, istate, path->buf, &dtype);
+				if (match >= 0)
+					child_protected = match;
 			}
 			if (remove_dirs(path, prefix, force_flag, dry_run, quiet, &gone,
-					ci, istate))
+					ci, istate, child_protected))
 				ret = 1;
 			if (gone) {
 				quote_path(path->buf, prefix, &quoted, 0);
@@ -231,22 +239,22 @@ static int remove_dirs(struct strbuf *path, const char *prefix, int force_flag,
 				*dir_gone = 0;
 			continue;
 		} else {
-			/* Check if file is protected by cleanignore */
 			if (ci) {
 				dtype = DT_REG;
-				if (is_cleanignored(ci, istate, path->buf, &dtype)) {
-					*dir_gone = 0;
-					continue;
-				}
+				match = cleanignore_match(ci, istate, path->buf, &dtype);
+				if (match >= 0)
+					child_protected = match;
 				/*
 				 * Protect per-directory .gitcleanignore files
 				 * from removal, as they define the protection
 				 * rules for their directory.
 				 */
-				if (!strcmp(e->d_name, ".gitcleanignore")) {
-					*dir_gone = 0;
-					continue;
-				}
+				if (!strcmp(e->d_name, ".gitcleanignore"))
+					child_protected = 1;
+			}
+			if (child_protected) {
+				*dir_gone = 0;
+				continue;
 			}
 			res = dry_run ? 0 : unlink(path->buf);
 			if (!res) {
@@ -271,6 +279,10 @@ static int remove_dirs(struct strbuf *path, const char *prefix, int force_flag,
 	closedir(dir);
 
 	strbuf_setlen(path, original_len);
+
+	/* A protected directory stays even if negations emptied it. */
+	if (protected)
+		*dir_gone = 0;
 
 	if (*dir_gone) {
 		/*
@@ -1062,7 +1074,7 @@ int cmd_clean(int argc,
 		struct dir_entry *ent = dir.entries[i];
 		struct stat st;
 		const char *rel;
-		int dtype;
+		int dtype, protected = 0;
 
 		if (!index_name_is_other(the_repository->index, ent->name, ent->len))
 			continue;
@@ -1082,13 +1094,23 @@ int cmd_clean(int argc,
 				continue;
 		}
 
-		/* Check if protected by cleanignore */
 		if (is_cleanignored(&cleanignore, the_repository->index,
-				    ent->name, &dtype))
-			continue;
+				    ent->name, &dtype)) {
+			/*
+			 * A protected directory is still traversed so that
+			 * negated cleanignore patterns inside it take effect.
+			 * Not in interactive mode though: the menu would then
+			 * offer the directory itself as a removal candidate.
+			 */
+			if (!S_ISDIR(st.st_mode) || interactive)
+				continue;
+			protected = 1;
+		}
 
 		rel = relative_path(ent->name, prefix, &buf);
-		string_list_append(&del_list, rel);
+		item = string_list_append(&del_list, rel);
+		/* non-NULL util: a protected directory to traverse, not remove */
+		item->util = protected ? &del_list : NULL;
 	}
 
 	dir_clear(&dir);
@@ -1115,7 +1137,8 @@ int cmd_clean(int argc,
 
 		if (S_ISDIR(st.st_mode)) {
 			if (remove_dirs(&abs_path, prefix, rm_flags, dry_run, quiet, &gone,
-					&cleanignore, the_repository->index))
+					&cleanignore, the_repository->index,
+					item->util != NULL))
 				errors++;
 			if (gone && !quiet) {
 				qname = quote_path(item->string, NULL, &buf, 0);
