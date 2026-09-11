@@ -20,7 +20,9 @@ linkgit:git-clean[1] according to the cleanignore rules and output the
 path if it is protected.
 
 By default, tracked files are not shown in the output, as they are not
-subject to cleanignore rules anyway.
+subject to cleanignore rules anyway.  Only pattern matches are reported:
+the implicit protection of `.gitcleanignore` files themselves (see
+linkgit:gitcleanignore[5]) is not.
 
 See linkgit:gitcleanignore[5] for details about cleanignore file format
 and how patterns are matched.
