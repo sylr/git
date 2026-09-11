@@ -3512,11 +3512,19 @@ static struct pattern_list *cleanignore_add_pattern_list(
 		struct cleanignore_struct *ci,
 		int group_type, const char *src)
 {
-	struct pattern_list *pl;
+	struct pattern_list *pl, *old;
 	struct exclude_list_group *group;
 
 	group = &ci->groups[group_type];
+	old = group->pl;
 	ALLOC_GROW(group->pl, group->nr + 1, group->alloc);
+	if (group->pl != old) {
+		/* add_pattern() stored pointers into the array we just moved */
+		int i, j;
+		for (i = 0; i < group->nr; i++)
+			for (j = 0; j < group->pl[i].nr; j++)
+				group->pl[i].patterns[j]->pl = &group->pl[i];
+	}
 	pl = &group->pl[group->nr++];
 	memset(pl, 0, sizeof(*pl));
 	pl->src = src;
@@ -3540,9 +3548,16 @@ static void cleanignore_add_patterns_from_file(struct cleanignore_struct *ci,
  */
 void setup_cleanignore(struct cleanignore_struct *ci)
 {
-	/* core.cleanExcludesFile defaulting to $XDG_CONFIG_HOME/git/cleanignore */
-	const char *clean_excludes_file = repo_clean_excludes_file(the_repository);
+	const char *clean_excludes_file;
 
+	/*
+	 * Per-directory patterns borrow their base from basebuf; pre-size it
+	 * like prep_exclude() does so pushing deeper frames does not move it.
+	 */
+	strbuf_grow(&ci->basebuf, PATH_MAX);
+
+	/* core.cleanExcludesFile defaulting to $XDG_CONFIG_HOME/git/cleanignore */
+	clean_excludes_file = repo_clean_excludes_file(the_repository);
 	if (clean_excludes_file && !access_or_warn(clean_excludes_file, R_OK, 0))
 		cleanignore_add_patterns_from_file(ci, clean_excludes_file);
 
