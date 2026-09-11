@@ -27,11 +27,13 @@ and how patterns are matched.
 
 OPTIONS
 -------
--q, --quiet::
+-q::
+--quiet::
 	Don't output anything, just set exit status.  This is only
 	valid with a single pathname.
 
--v, --verbose::
+-v::
+--verbose::
 	Instead of printing the paths that are protected, for each path
 	that matches a pattern, print the pattern together with the path.
 	The format is: '<source> <COLON> <linenum> <COLON> <pattern> <TAB> <path>'
@@ -45,7 +47,8 @@ OPTIONS
 	below).  If `--stdin` is also given, input paths are separated
 	with a NUL character instead of a linefeed character.
 
--n, --non-matching::
+-n::
+--non-matching::
 	Show given paths which don't match any pattern.  This only
 	makes sense when `--verbose` is enabled, otherwise it would
 	not be possible to distinguish between paths which match a
