@@ -1126,6 +1126,11 @@ int cmd_clean(int argc,
 			strbuf_addstr(&abs_path, prefix);
 
 		strbuf_addstr(&abs_path, item->string);
+		/*
+		 * item->string is relative to the prefix and may contain
+		 * "../"; cleanignore rules match repository-relative paths.
+		 */
+		strbuf_normalize_path(&abs_path);
 
 		/*
 		 * we might have removed this as part of earlier

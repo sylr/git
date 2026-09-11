@@ -1299,6 +1299,26 @@ test_expect_success 'pathspec-limited clean from subdirectory honours negation' 
 	)
 '
 
+test_expect_success 'anchored cleanignore rules apply to ../ pathspecs from a subdirectory' '
+	(
+		cd cleanignore-tests &&
+		mkdir -p sub other &&
+		>sub/tracked2 &&
+		git add sub/tracked2 &&
+		>other/keep &&
+		>other/drop &&
+		echo "/other/keep" >.git/info/cleanignore &&
+		(
+			cd sub &&
+			git clean -fdx ../other
+		) &&
+		test_path_is_file other/keep &&
+		test_path_is_missing other/drop &&
+		git rm -q --cached sub/tracked2 &&
+		rm -rf sub other .git/info/cleanignore
+	)
+'
+
 test_expect_success SYMLINKS 'negated symlink is unlinked without touching its target' '
 	(
 		cd cleanignore-tests &&
