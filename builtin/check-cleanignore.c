@@ -103,17 +103,19 @@ static int check_cleanignore(struct cleanignore_struct *ci,
 	die_path_inside_submodule(the_repository->index, &pathspec);
 
 	/*
-	 * Unlike check-ignore, we don't skip paths that are in the index
-	 * because cleanignore is specifically about protecting untracked files.
-	 * However, we still use the index to check for submodules.
+	 * git clean never removes tracked paths, so like check-ignore we
+	 * report them as not matching unless --no-index was given.
 	 */
 	seen = find_pathspecs_matching_against_index(&pathspec, the_repository->index,
 						     PS_HEED_SKIP_WORKTREE);
 	for (i = 0; i < pathspec.nr; i++) {
-		int dtype = DT_UNKNOWN;
 		full_path = pathspec.items[i].match;
-		pattern = cleanignore_deciding_pattern(ci, the_repository->index,
-						       full_path, &dtype);
+		pattern = NULL;
+		if (!seen[i]) {
+			int dtype = DT_UNKNOWN;
+			pattern = cleanignore_deciding_pattern(ci, the_repository->index,
+							       full_path, &dtype);
+		}
 		if (!verbose && pattern &&
 		    pattern->flags & PATTERN_FLAG_NEGATIVE)
 			pattern = NULL;

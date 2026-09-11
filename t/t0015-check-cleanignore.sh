@@ -188,6 +188,20 @@ test_expect_success 'check-cleanignore negation inside protected directory' '
 	)
 '
 
+test_expect_success 'check-cleanignore skips tracked paths unless --no-index' '
+	(
+		cd repo &&
+		echo "tracked_file" >.gitcleanignore &&
+		test_must_fail git check-cleanignore tracked_file &&
+		test_expect_code 1 git check-cleanignore -v -n tracked_file >actual &&
+		echo "::	tracked_file" >expect &&
+		test_cmp expect actual &&
+		git check-cleanignore --no-index tracked_file >actual &&
+		echo "tracked_file" >expect &&
+		test_cmp expect actual
+	)
+'
+
 test_expect_success 'check-cleanignore: nested file does not protect ancestors or siblings' '
 	(
 		cd repo &&
