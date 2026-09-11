@@ -226,4 +226,25 @@ test_expect_success 'check-cleanignore: nested file does not protect ancestors o
 	)
 '
 
+test_expect_success 'check-cleanignore -v shows negations without claiming protection' '
+	(
+		cd repo &&
+		cat >.gitcleanignore <<-\EOF &&
+		*.tmp
+		!important.tmp
+		EOF
+		test_expect_code 1 git check-cleanignore -v important.tmp >actual &&
+		echo ".gitcleanignore:2:!important.tmp	important.tmp" >expect &&
+		test_cmp expect actual &&
+		test_expect_code 1 git check-cleanignore -v -n important.tmp other >actual &&
+		cat >expect <<-\EOF &&
+		.gitcleanignore:2:!important.tmp	important.tmp
+		::	other
+		EOF
+		test_cmp expect actual &&
+		git check-cleanignore -v important.tmp file.tmp >actual &&
+		test_line_count = 2 actual
+	)
+'
+
 test_done
