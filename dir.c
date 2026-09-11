@@ -3545,7 +3545,8 @@ void setup_cleanignore(struct cleanignore_struct *ci)
 {
 	/*
 	 * Per-directory patterns borrow their base from basebuf; pre-size it
-	 * like prep_exclude() does so pushing deeper frames does not move it.
+	 * like prep_exclude() does so that it rarely moves (prep_cleanignore()
+	 * rebinds the patterns when it does).
 	 */
 	strbuf_grow(&ci->basebuf, PATH_MAX);
 
@@ -3564,6 +3565,20 @@ void setup_cleanignore(struct cleanignore_struct *ci)
 }
 
 /*
+ * Per-directory patterns point at basebuf for their base; when the
+ * buffer had to move, point them at its new location.
+ */
+static void cleanignore_rebind_bases(struct cleanignore_struct *ci)
+{
+	struct exclude_list_group *group = &ci->groups[CLEANIGNORE_DIRS];
+	int i, j;
+
+	for (i = 0; i < group->nr; i++)
+		for (j = 0; j < group->pl[i].nr; j++)
+			group->pl[i].patterns[j]->base = ci->basebuf.buf;
+}
+
+/*
  * Lazy-load per-directory .gitcleanignore patterns.
  * Similar to prep_exclude() but for cleanignore.
  */
@@ -3574,6 +3589,7 @@ void prep_cleanignore(struct cleanignore_struct *ci,
 	struct exclude_list_group *group;
 	struct pattern_list *pl;
 	struct exclude_stack *stk = NULL;
+	const char *oldbuf;
 	int current;
 
 	group = &ci->groups[CLEANIGNORE_DIRS];
@@ -3617,8 +3633,11 @@ void prep_cleanignore(struct cleanignore_struct *ci,
 		stk->exclude_ix = group->nr;
 		stk->ucd = NULL;
 		pl = cleanignore_add_pattern_list(ci, CLEANIGNORE_DIRS, NULL);
+		oldbuf = ci->basebuf.buf;
 		strbuf_add(&ci->basebuf, base + current, stk->baselen - current);
 		assert(stk->baselen == ci->basebuf.len);
+		if (ci->basebuf.buf != oldbuf)
+			cleanignore_rebind_bases(ci);
 
 		/* Try to read per-directory file */
 		if (ci->per_dir_file) {
