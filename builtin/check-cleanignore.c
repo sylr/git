@@ -121,7 +121,7 @@ static int check_cleanignore(struct cleanignore_struct *ci,
 			pattern = NULL;
 		if (!quiet && (pattern || show_non_matching))
 			output_pattern(pathspec.items[i].original, pattern);
-		if (pattern)
+		if (pattern && !(pattern->flags & PATTERN_FLAG_NEGATIVE))
 			num_protected++;
 	}
 	free(seen);
