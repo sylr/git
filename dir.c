@@ -3697,12 +3697,55 @@ void cleanignore_prep_path(struct cleanignore_struct *ci,
 }
 
 /*
- * Check if a path is protected by cleanignore.
- * Returns 1 if the path should be protected (not cleaned), 0 otherwise.
+ * Like last_matching_cleanignore_pattern(), but for an ancestor directory
+ * of the path the stack was prepared for: only per-directory lists that
+ * live at or above that ancestor's own directory (dirlen, including the
+ * trailing slash) may decide it.  A .gitcleanignore nested below the
+ * ancestor must not be able to match the ancestor itself.
  */
-int is_cleanignored(struct cleanignore_struct *ci,
-		    struct index_state *istate,
-		    const char *pathname, int *dtype)
+static struct path_pattern *last_matching_cleanignore_pattern_scoped(
+		struct cleanignore_struct *ci,
+		struct index_state *istate,
+		const char *pathname, int pathlen,
+		const char *basename, int *dtype_p, int dirlen)
+{
+	int i, j;
+	struct exclude_list_group *group;
+	struct exclude_stack *stk;
+	struct path_pattern *pattern;
+
+	for (i = CLEANIGNORE_CMDL; i <= CLEANIGNORE_FILE; i++) {
+		group = &ci->groups[i];
+		if (i == CLEANIGNORE_DIRS) {
+			for (stk = ci->stack; stk; stk = stk->prev) {
+				if (stk->baselen > dirlen)
+					continue;
+				pattern = last_matching_pattern_from_list(
+					pathname, pathlen, basename, dtype_p,
+					&group->pl[stk->exclude_ix], istate);
+				if (pattern)
+					return pattern;
+			}
+			continue;
+		}
+		for (j = group->nr - 1; j >= 0; j--) {
+			pattern = last_matching_pattern_from_list(
+				pathname, pathlen, basename, dtype_p,
+				&group->pl[j], istate);
+			if (pattern)
+				return pattern;
+		}
+	}
+	return NULL;
+}
+
+/*
+ * Direct match only: 1 if the path itself matches a protecting pattern,
+ * 0 if it matches a negated one, -1 if no pattern matches it.
+ */
+int cleanignore_match(struct cleanignore_struct *ci,
+		      struct index_state *istate,
+		      const char *pathname, int *dtype)
 {
 	struct path_pattern *pattern;
 	int pathlen;
@@ -3713,6 +3756,70 @@ int is_cleanignored(struct cleanignore_struct *ci,
 	pattern = last_matching_cleanignore_pattern(ci, istate,
 						    pathname, pathlen,
 						    basename, dtype);
+	if (!pattern)
+		return -1;
+	return pattern->flags & PATTERN_FLAG_NEGATIVE ? 0 : 1;
+}
+
+/*
+ * Find the pattern that decides whether a path is protected: the last
+ * matching pattern on the path itself, or failing that on its nearest
+ * ancestor directory that has one.  Unlike gitignore, a negated pattern
+ * on a descendant overrides a protecting pattern on an ancestor.
+ * Returns NULL when no pattern applies at all.
+ *
+ * The returned pattern's ->pl and ->base borrow from arrays that may move
+ * when more per-directory lists are loaded; consume it before the next
+ * prep_cleanignore() call.
+ */
+struct path_pattern *cleanignore_deciding_pattern(struct cleanignore_struct *ci,
+						  struct index_state *istate,
+						  const char *pathname, int *dtype)
+{
+	struct path_pattern *res = NULL, *pattern;
+	int pathlen;
+	const char *basename, *compstart, *p;
+
+	/*
+	 * Load every per-directory list for the path's ancestors first so
+	 * that nothing below can grow the stack behind a remembered match.
+	 */
+	cleanignore_prep_path(ci, istate, pathname, &pathlen, &basename);
+
+	compstart = pathname;
+	for (p = pathname; p < basename; p++) {
+		int adtype = DT_DIR;
+
+		if (*p != '/')
+			continue;
+		pattern = last_matching_cleanignore_pattern_scoped(
+			ci, istate, pathname, p - pathname, compstart,
+			&adtype, compstart - pathname);
+		if (pattern)
+			res = pattern;
+		compstart = p + 1;
+	}
+
+	pattern = last_matching_cleanignore_pattern(ci, istate,
+						    pathname, pathlen,
+						    basename, dtype);
+	if (pattern)
+		res = pattern;
+	return res;
+}
+
+/*
+ * Check if a path is protected by cleanignore, taking protection
+ * inherited from ancestor directories into account.
+ * Returns 1 if the path should be protected (not cleaned), 0 otherwise.
+ */
+int is_cleanignored(struct cleanignore_struct *ci,
+		    struct index_state *istate,
+		    const char *pathname, int *dtype)
+{
+	struct path_pattern *pattern;
+
+	pattern = cleanignore_deciding_pattern(ci, istate, pathname, dtype);
 	if (pattern)
 		return pattern->flags & PATTERN_FLAG_NEGATIVE ? 0 : 1;
 	return 0;

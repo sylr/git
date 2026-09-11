@@ -152,4 +152,64 @@ test_expect_success 'check-cleanignore multiple files' '
 	)
 '
 
+test_expect_success 'check-cleanignore reports inherited directory protection' '
+	(
+		cd repo &&
+		echo "protected_dir/" >.gitcleanignore &&
+		mkdir -p protected_dir/sub &&
+		git check-cleanignore -v protected_dir/sub/file >actual &&
+		echo ".gitcleanignore:1:protected_dir/	protected_dir/sub/file" >expect &&
+		test_cmp expect actual
+	)
+'
+
+test_expect_success 'check-cleanignore negation inside protected directory' '
+	(
+		cd repo &&
+		cat >.gitcleanignore <<-\EOF &&
+		protected_dir/
+		!protected_dir/tmp
+		EOF
+		mkdir -p protected_dir/tmp &&
+		test_must_fail git check-cleanignore protected_dir/tmp >actual &&
+		test_must_be_empty actual &&
+		test_must_fail git check-cleanignore protected_dir/tmp/x &&
+		git check-cleanignore -v protected_dir/tmp protected_dir/tmp/x protected_dir/a >actual &&
+		cat >expect <<-\EOF &&
+		.gitcleanignore:2:!protected_dir/tmp	protected_dir/tmp
+		.gitcleanignore:2:!protected_dir/tmp	protected_dir/tmp/x
+		.gitcleanignore:1:protected_dir/	protected_dir/a
+		EOF
+		test_cmp expect actual &&
+		printf "protected_dir/a\nprotected_dir/tmp/x\nother\n" |
+		git check-cleanignore --stdin >actual &&
+		echo "protected_dir/a" >expect &&
+		test_cmp expect actual
+	)
+'
+
+test_expect_success 'check-cleanignore: nested file does not protect ancestors or siblings' '
+	(
+		cd repo &&
+		rm -f .gitcleanignore &&
+		mkdir -p sub/inner sub/sibling &&
+		echo "keep" >sub/inner/.gitcleanignore &&
+		test_must_fail git check-cleanignore sub/keep &&
+		test_must_fail git check-cleanignore sub/sibling/keep &&
+		git check-cleanignore sub/inner/keep sub/inner/deeper/keep >actual &&
+		cat >expect <<-\EOF &&
+		sub/inner/keep
+		sub/inner/deeper/keep
+		EOF
+		test_cmp expect actual &&
+		printf "sub/inner/keep\nsub/keep\nsub/sibling/keep\nsub/inner/keep\n" |
+		git check-cleanignore --stdin >actual &&
+		cat >expect <<-\EOF &&
+		sub/inner/keep
+		sub/inner/keep
+		EOF
+		test_cmp expect actual
+	)
+'
+
 test_done

@@ -393,6 +393,12 @@ void cleanignore_prep_path(struct cleanignore_struct *ci,
 			   const char *pathname,
 			   int *pathlen_out,
 			   const char **basename_out);
+int cleanignore_match(struct cleanignore_struct *ci,
+		      struct index_state *istate,
+		      const char *pathname, int *dtype);
+struct path_pattern *cleanignore_deciding_pattern(struct cleanignore_struct *ci,
+						  struct index_state *istate,
+						  const char *pathname, int *dtype);
 int is_cleanignored(struct cleanignore_struct *ci,
 		    struct index_state *istate,
 		    const char *pathname, int *dtype);
