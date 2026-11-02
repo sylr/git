@@ -247,9 +247,11 @@ static int remove_dirs(struct strbuf *path, const char *prefix, int force_flag,
 				/*
 				 * Protect per-directory .gitcleanignore files
 				 * from removal, as they define the protection
-				 * rules for their directory.
+				 * rules for their directory. Compare like the
+				 * filesystem does: on a case-insensitive one,
+				 * ".GITCLEANIGNORE" is read as the rule file.
 				 */
-				if (!strcmp(e->d_name, ".gitcleanignore"))
+				if (fspatheq(e->d_name, ".gitcleanignore"))
 					child_protected = 1;
 			}
 			if (child_protected) {
@@ -1090,7 +1092,7 @@ int cmd_clean(int argc,
 		/* like remove_dirs(): never remove the rules themselves */
 		if (!S_ISDIR(st.st_mode)) {
 			const char *base = strrchr(ent->name, '/');
-			if (!strcmp(base ? base + 1 : ent->name, ".gitcleanignore"))
+			if (fspatheq(base ? base + 1 : ent->name, ".gitcleanignore"))
 				continue;
 		}
 

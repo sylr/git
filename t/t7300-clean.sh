@@ -1349,4 +1349,24 @@ test_expect_success SYMLINKS 'negated symlink is unlinked without touching its t
 	)
 '
 
+test_expect_success CASE_INSENSITIVE_FS 'case variants of .gitcleanignore are kept' '
+	(
+		cd cleanignore-tests &&
+		mkdir -p sub &&
+		>top_keep &&
+		>sub/keep &&
+		>sub/drop &&
+		echo "top_keep" >.GITCLEANIGNORE &&
+		echo "keep" >sub/.GitCleanIgnore &&
+		git -c core.ignorecase=true clean -fdx &&
+		test_path_is_file .GITCLEANIGNORE &&
+		test_path_is_file sub/.GitCleanIgnore &&
+		test_path_is_missing sub/drop &&
+		git -c core.ignorecase=true clean -fdx &&
+		test_path_is_file top_keep &&
+		test_path_is_file sub/keep &&
+		rm -rf sub top_keep .GITCLEANIGNORE
+	)
+'
+
 test_done
