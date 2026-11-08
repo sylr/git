@@ -57,7 +57,7 @@ test_expect_success 'check-cleanignore verbose mode' '
 		cd repo &&
 		echo "protected.txt" >.gitcleanignore &&
 		git check-cleanignore -v protected.txt >actual &&
-		grep "^.gitcleanignore:1:protected.txt	protected.txt$" actual
+		test_grep "^.gitcleanignore:1:protected.txt	protected.txt$" actual
 	)
 '
 
@@ -66,8 +66,8 @@ test_expect_success 'check-cleanignore verbose mode with non-matching' '
 		cd repo &&
 		echo "protected.txt" >.gitcleanignore &&
 		git check-cleanignore -v -n other.txt protected.txt >actual &&
-		grep "^::	other.txt$" actual &&
-		grep "^.gitcleanignore:1:protected.txt	protected.txt$" actual
+		test_grep "^::	other.txt$" actual &&
+		test_grep "^.gitcleanignore:1:protected.txt	protected.txt$" actual
 	)
 '
 

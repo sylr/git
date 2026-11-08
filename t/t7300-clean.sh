@@ -1230,7 +1230,7 @@ test_expect_success SANITY 'protected unreadable empty directory is kept' '
 	test_when_finished "chmod 755 cleanignore-tests/foo &&
 			    rm -rf cleanignore-tests/foo cleanignore-tests/.gitcleanignore" &&
 	git -C cleanignore-tests clean -ndfx >out &&
-	! grep foo out &&
+	test_grep ! foo out &&
 	git -C cleanignore-tests clean -dfx &&
 	test_path_is_dir cleanignore-tests/foo
 '
@@ -1249,7 +1249,7 @@ test_expect_success 'deeply nested negation with many per-directory frames' '
 		echo "!drop" >"$dir/.gitcleanignore" &&
 		echo "deep/" >.gitcleanignore &&
 		git check-cleanignore -v "$dir/keep" >actual &&
-		grep "^.gitcleanignore:1:deep/	" actual &&
+		test_grep "^.gitcleanignore:1:deep/	" actual &&
 		git clean -fd &&
 		test_path_is_missing "$dir/drop" &&
 		test_path_is_file "$dir/keep" &&
