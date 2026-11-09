@@ -1071,7 +1071,9 @@ test_expect_success 'global !**/node_modules removes node_modules under protecte
 		Removing wt/a/node_modules
 		Removing wt/b/node_modules
 		EOF
-		test_cmp "$TRASH_DIRECTORY/expect" "$TRASH_DIRECTORY/out" &&
+		# remove_dirs() reports in readdir() order, which varies by filesystem
+		sort "$TRASH_DIRECTORY/out" >"$TRASH_DIRECTORY/actual" &&
+		test_cmp "$TRASH_DIRECTORY/expect" "$TRASH_DIRECTORY/actual" &&
 		rm -rf wt "$TRASH_DIRECTORY/global_cleanignore"
 	)
 '
